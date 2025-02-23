@@ -1,13 +1,14 @@
 {
     "name": "phaser-editor-helper",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Phaser Editor Integration Helper",
     "main": "index.js",
     "scripts": {},
     "keywords": [
         "phaser",
-        "editor",
-        "phaser-editor"
+        "phaser-editor",
+        "webpack",
+        "webpack-plugin"
     ],
     "author": "ghlds",
     "license": "MIT"

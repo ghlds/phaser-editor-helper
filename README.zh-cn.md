@@ -10,7 +10,7 @@ Phaser编辑器接入助手
 
 1. 筛选输出内容，排除与代码无关的文件，并将代码完整复制到项目中。
 2. 优化 function 模式下的代码，将其转换为组合式代码。
-3. 提供友好的 `Typescript` 类型提示，将编辑器中设置为 `public` 的元素统一声明类型并导出，特殊类型可在 `Typescript` 中自定义。
+3. 提供友好的 `Typescript` 类型提示，将编辑器中设置为 `public` 的元素统一声明类型并导出。
 
 通过使用 `phaser-editor-helper`，开发者可以更方便地管理和使用 `Phaser Editor` 生成的代码，避免因 `Phaser Editor` 的输出混淆项目管理。
 
@@ -113,5 +113,3 @@ export default class MyScene extends Phaser.Scene implements SceneExtensions {
     }
 }
 ```
-
-插件会自动将 `MyScene` 函数转换为组合式代码，并为场景添加类型声明。
