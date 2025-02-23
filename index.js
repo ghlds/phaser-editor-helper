@@ -4,7 +4,6 @@ const chokidar = require('chokidar');
 const { copyFileSync, mkdirSync, existsSync } = fs;
 
 class PhaserEditorHelper {
-    //
     constructor(options) {
         this.watchDir = options.watchDir;
         this.outputDir = options.outputDir;
