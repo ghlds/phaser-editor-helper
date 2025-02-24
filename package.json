@@ -10,6 +10,10 @@
         "webpack",
         "webpack-plugin"
     ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ghlds/phaser-editor-helper.git"
+    },
     "author": "ghlds",
     "license": "MIT"
 }

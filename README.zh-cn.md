@@ -2,17 +2,26 @@
 
 [中文文档](./README.zh-cn.md) | [English Documentation](./README.md)
 
-Phaser编辑器接入助手
+[PhaserEditor](https://phaser.io/editor) 的接入助手
 
 ## 介绍
 
-`phaser-editor-helper` 是一个 `webpack` 插件，旨在非侵入式地将 `Phaser Editor` 集成到使用 `webpack` 构建的游戏项目中，并对 `Phaser Editor` 的输出进行二次处理。
+### `phaser-editor-helper` 是一个针对 Phaser Editor 设计的 Webpack 插件
 
-1. 筛选输出内容，排除与代码无关的文件，并将代码完整复制到项目中。
-2. 优化 function 模式下的代码，将其转换为组合式代码。
-3. 提供友好的 `Typescript` 类型提示，将编辑器中设置为 `public` 的元素统一声明类型并导出。
+### 插件做了哪些工作？
 
-通过使用 `phaser-editor-helper`，开发者可以更方便地管理和使用 `Phaser Editor` 生成的代码，避免因 `Phaser Editor` 的输出混淆项目管理。
+- 隔离 [PhaserEditor](https://phaser.io/editor) 产生的代码和产物，与Webpack的工程项目分离管理。
+- 修正 [Only Generate Methods](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 的产物：
+
+  > [create](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 和 [preload](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 支持传入场景，不再使用 `call` 重定向，自动导出 [create]((https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html)) 和 [preload](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 函数。
+
+- 友好的 `typescript` 类型提示：
+  > 当场景类型设置为 `typescript`，插件会为 [作用域设置为public的元素](https://help-v3.phasereditor2d.com/scene-editor/variable-properties.html) 和
+  [作用域设置为public的脚本节点](https://help-v3.phasereditor2d.com/scene-editor/variable-properties.html) 进行类型推导，并且合并所有类型推导为 `SceneExtensions` 并统一导出。
+- 静态资源管理：
+  > 在构建时，保留了完整的静态资源相对路径的资源文件，无需在代码中修改静态资源的引入路径，可配置的剔除与项目无关的静态资源。
+- 产出文件管理：
+  > 可选择性剔除与开发无关的产物，并完整拷贝到指定目录中，组合式引用场景文件。
 
 ## 安装
 
@@ -20,57 +29,46 @@ Phaser编辑器接入助手
 npm install phaser-editor-helper --save-dev
 ```
 
-## 功能说明
+## 使用说明
 
-### 1. 代码转换
-
-插件会将 function 模式下的代码转换为组合式代码，并为场景添加类型声明。
-
-### 2. 文件监视
-
-在开发模式下，插件会监视编辑器工作目录，自动转换代码并复制到项目中。
-
-### 3. 清理非 JSON 文件
-
-在生产模式下，插件会清理工作目录下的非 JSON 文件。生产模式不需要编辑器的工作文件，例如 `.scene` 等，并且打包时不会包含 `publicroot` 文件中存在的文件。
-
-## 接入 Webpack 项目
+开始之前，需要指定一个Webpack的静态资源目录，作为 [PhaserEditor](https://phaser.io/editor) 的工作目录，例如 `/public` 或者 `/static`，他们可能比较常见的存在于你的Webpack项目中。
 
 ### 接入前准备工作
 
-1. 选择一个 webpack 设定好的静态资源目录，例如：`/public`
-2. 创建 Phaser Editor 指定的 [`publicroot`](https://help-v3.phasereditor2d.com/asset-pack-editor/public-root.html) 文件
-3. 创建一个包含场景、节点脚本等 Phaser Editor 工作目录，例如：`/editor`
-
-## 配置选项
-
-- `watchDir`: 需要监视的目录。
-- `outputDir`: 输出目录。
-- `excludePatterns`: 排除的文件模式，默认为空数组。
-- `conversionDir`: 需要处理的目录。
+2. 在静态资源目录中，创建一个 [PhaserEditor](https://phaser.io/editor) 指定的 [`publicroot`](https://help-v3.phasereditor2d.com/asset-pack-editor/public-root.html) 文件
+3. 创建一个包含场景、节点脚本等 [PhaserEditor](https://phaser.io/editor) 工作目录，例如：`/editor`
 
 ## 示例
 
-假设项目结构如下：
+示例项目结构如下：
 
 ```
 project
-|—— public
+├──public
 |   └──assets
 |   └──editor
-|       └── scenes
-|           └── Level
-|               └── Scene.ts
-|               └── Scene.scene
-|       └── script-nodes
+|       └──scenes
+|           └──Level
+|               └──Scene.ts
+|               └──Scene.scene
+|       └──script-nodes
+|       └──...
 |   └──publicroot
 ├── src
 |   └──editor
-|       └── scenes
-|       └── script-nodes
-│   └── scenes
-│       └── MyScene.ts
+|       └──scenes
+|       └──script-nodes
+|   └──scenes
+|       └──MyScene.ts
+|       └──...
 ```
+
+## 配置插件
+
+- `watchDir`: 需要监视的目录。
+- `outputDir`: 要拷贝的目录。
+- `excludePatterns`: 排除不需要拷贝的文件类型。
+- `conversionDir`: 需要进行二次处理的场景文件集。
 
 在 webpack 配置中添加 `phaser-editor-helper` 插件：
 
@@ -81,35 +79,83 @@ module.exports = {
   // ...existing code...
   plugins: [
     new PhaserEditorHelper({
-      watchDir: path.resolve(__dirname, 'public/editor'), // 需要监视的目录
-      outputDir: path.resolve(__dirname, 'src/editor'), // 输出目录
-      excludePatterns: ['.scene', '.json', '.components', 'node_modules'], // 排除的文件模式
-      conversionDir: "public/editor/scenes", // 需要转换的目录
+      watchDir: path.resolve(__dirname, "public/editor"),
+      outputDir: path.resolve(__dirname, "src/editor"),
+      conversionDir: path.resolve(__dirname, "public/editor/scenes"),
+      excludePatterns: [".scene", ".json", ".components", "node_modules"],
     }),
   ],
 };
 ```
+### 选择 [Only Generate Methods](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 来制作游戏
+插件会根据你制作的场景，自动处理代码，并优化产出的代码，例如：`Level/Scene.ts`
 
-在 `src/scenes/MyScene.ts` 文件中定义场景：
+```typescript
+function preload(scene): void {
+  scene.load.pack("asset-pack", "xxx/xxx/xxx/asset-pack.json");
+}
+
+function editorCreate(scene): void {
+  //编辑器生成的代码...例如：
+  const image_1 = scene.add.image(0, 0, "1");
+  scene.image_1 = image_1;
+  scene.events.emit("scene-awake");
+}
+// 二次处理生成对应类型，并抛出用于组合的方法
+export { preload };
+export { editorCreate };
+type SceneExtensions = {
+  image_1: Phaser.GameObjects.Image;
+};
+export type { SceneExtensions };
+```
+
+### 优雅的使用这些代码
+在 `src/scenes/MyScene.ts` 中使用
 
 ```typescript
 import {
-    preload,
-    editorCreate,
-    type SceneExtensions
+  preload,
+  editorCreate,
+  type SceneExtensions,
 } from "@/editor/scenes/Level/Scene";
 
 export default class MyScene extends Phaser.Scene implements SceneExtensions {
-    constructor() {
-        super("MyScene");
-    }
-    image_1!: Phaser.GameObjects.Image; // 来自类型提示
-    preload() {
-        preload(this);
-    }
-    create() {
-        editorCreate(this);
-        this.image_1.x = 0 // ...existing code...
-    }
+  constructor() {
+    super("MyScene");
+  }
+  image_1!: Phaser.GameObjects.Image; // 来自类型提示
+  preload() {
+    preload(this);
+  }
+  create() {
+    editorCreate(this);
+    this.image_1.x = 0; // ...existing code...
+  }
 }
 ```
+
+## 构建发布
+
+> 由于工作目录在公共资源目录下，插件已经内置清除了与编辑器相关的资源，并且保留了完整路径的 `json` 文件，因为 `json` 文件是项目构建时，必备的产物，例如：`asset-pack.json`，你可以放心的执行：
+
+```
+npm run build
+```
+
+### 额外配置
+
+> 项目中创建的 `publicroot` 只是一个用来给编辑器标识的空文件，但是使用此插件，可在 `publicroot` 文件中设置，要清除public目录下中不需要使用的某些垃圾文件，例如：
+
+```
+package.json
+package-lock.json
+node_modules
+log.txt
+...
+```
+
+
+## 许可证
+
+[MIT](https://github.com/ghlds/phaser-editor-helper/blob/main/LICENSE)
