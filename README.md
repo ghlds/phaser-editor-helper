@@ -78,15 +78,17 @@ module.exports = {
   // ...existing code...
   plugins: [
     new PhaserEditorHelper({
-      watchDir: path.resolve(__dirname, "public/editor"),
-      outputDir: path.resolve(__dirname, "src/editor"),
-      conversionDir: path.resolve(__dirname, "public/editor/scenes"),
+      watchDir: "public/editor",
+      outputDir: "src/editor",
+      conversionDir: "public/editor/scenes",
       excludePatterns: [".scene", ".json", ".components", "node_modules"],
     }),
   ],
 };
 ```
+
 ### Choose [Only Generate Methods](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) to create the game
+
 The plugin will automatically process the code and optimize the generated code based on the scenes you create, for example: `Level/Scene.ts`
 
 ```typescript
@@ -110,6 +112,7 @@ export type { SceneExtensions };
 ```
 
 ### Gracefully use these codes
+
 Use in `src/scenes/MyScene.ts`
 
 ```typescript

@@ -66,7 +66,7 @@ class PhaserEditorHelper {
                 let destContent = existsSync(destPath) ? fs.readFileSync(destPath, 'utf-8') : '';
 
                 const ext = path.extname(sourcePath);
-                if ((ext === '.js' || ext === '.ts') && this.conversionDir && sourcePath.includes(this.conversionDir)) {
+                if ((ext === '.js' || ext === '.ts') && this.conversionDir && path.normalize(sourcePath).includes(path.normalize(this.conversionDir))) {
                     const hasClassExport = /export\s+class\s+/g.test(sourceContent);
                     if (!hasClassExport) {
                         const functionMatches = sourceContent.match(/function\s+\w+\s*\(/g);
@@ -78,7 +78,7 @@ class PhaserEditorHelper {
                                 newContent += `\n${exportStatement}`;
                             });
                             if (ext === '.ts') {
-                                newContent = newContent.replace(/function\s+(\w+)\s*\(/g, 'function $1(scene, ');
+                                newContent = newContent.replace(/function\s+(\w+)\s*\(/g, 'function $1(scene: Phaser.Scene, ');
                                 newContent = newContent.replace(/this\./g, 'scene.');
                                 newContent = newContent.replace(/new\s+(\w+)\(this,/g, 'new $1(scene,');
 

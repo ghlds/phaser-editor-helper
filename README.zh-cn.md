@@ -10,14 +10,14 @@
 
 ### 插件做了哪些工作？
 
-- 隔离 [PhaserEditor](https://phaser.io/editor) 产生的代码和产物，与Webpack的工程项目分离管理。
+- 隔离 [PhaserEditor](https://phaser.io/editor) 产生的代码和产物，与 Webpack 的工程项目分离管理。
 - 修正 [Only Generate Methods](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 的产物：
 
-  > [create](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 和 [preload](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 支持传入场景，不再使用 `call` 重定向，自动导出 [create]((https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html)) 和 [preload](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 函数。
+  > [create](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 和 [preload](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 支持传入场景，不再使用 `call` 重定向，自动导出 [create](<(https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html)>) 和 [preload](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 函数。
 
 - 友好的 `typescript` 类型提示：
-  > 当场景类型设置为 `typescript`，插件会为 [作用域设置为public的元素](https://help-v3.phasereditor2d.com/scene-editor/variable-properties.html) 和
-  [作用域设置为public的脚本节点](https://help-v3.phasereditor2d.com/scene-editor/variable-properties.html) 进行类型推导，并且合并所有类型推导为 `SceneExtensions` 并统一导出。
+  > 当场景类型设置为 `typescript`，插件会为 [作用域设置为 public 的元素](https://help-v3.phasereditor2d.com/scene-editor/variable-properties.html) 和
+  > [作用域设置为 public 的脚本节点](https://help-v3.phasereditor2d.com/scene-editor/variable-properties.html) 进行类型推导，并且合并所有类型推导为 `SceneExtensions` 并统一导出。
 - 静态资源管理：
   > 在构建时，保留了完整的静态资源相对路径的资源文件，无需在代码中修改静态资源的引入路径，可配置的剔除与项目无关的静态资源。
 - 产出文件管理：
@@ -31,7 +31,7 @@ npm install phaser-editor-helper --save-dev
 
 ## 使用说明
 
-开始之前，需要指定一个Webpack的静态资源目录，作为 [PhaserEditor](https://phaser.io/editor) 的工作目录，例如 `/public` 或者 `/static`，他们可能比较常见的存在于你的Webpack项目中。
+开始之前，需要指定一个 Webpack 的静态资源目录，作为 [PhaserEditor](https://phaser.io/editor) 的工作目录，例如 `/public` 或者 `/static`，他们可能比较常见的存在于你的 Webpack 项目中。
 
 ### 接入前准备工作
 
@@ -79,15 +79,17 @@ module.exports = {
   // ...existing code...
   plugins: [
     new PhaserEditorHelper({
-      watchDir: path.resolve(__dirname, "public/editor"),
-      outputDir: path.resolve(__dirname, "src/editor"),
-      conversionDir: path.resolve(__dirname, "public/editor/scenes"),
+      watchDir: "public/editor",
+      outputDir: "src/editor",
+      conversionDir: "public/editor/scenes",
       excludePatterns: [".scene", ".json", ".components", "node_modules"],
     }),
   ],
 };
 ```
+
 ### 选择 [Only Generate Methods](https://help-v3.phasereditor2d.com/scene-editor/scene-compiler-scene-settings.html) 来制作游戏
+
 插件会根据你制作的场景，自动处理代码，并优化产出的代码，例如：`Level/Scene.ts`
 
 ```typescript
@@ -111,6 +113,7 @@ export type { SceneExtensions };
 ```
 
 ### 优雅的使用这些代码
+
 在 `src/scenes/MyScene.ts` 中使用
 
 ```typescript
@@ -145,7 +148,7 @@ npm run build
 
 ### 额外配置
 
-> 项目中创建的 `publicroot` 只是一个用来给编辑器标识的空文件，但是使用此插件，可在 `publicroot` 文件中设置，要清除public目录下中不需要使用的某些垃圾文件，例如：
+> 项目中创建的 `publicroot` 只是一个用来给编辑器标识的空文件，但是使用此插件，可在 `publicroot` 文件中设置，要清除 public 目录下中不需要使用的某些垃圾文件，例如：
 
 ```
 package.json
@@ -154,7 +157,6 @@ node_modules
 log.txt
 ...
 ```
-
 
 ## 许可证
 
