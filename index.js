@@ -78,7 +78,7 @@ class PhaserEditorHelper {
                                 newContent += `\n${exportStatement}`;
                             });
                             if (ext === '.ts') {
-                                newContent = newContent.replace(/function\s+(\w+)\s*\(/g, 'function $1(scene: Phaser.Scene, ');
+                                newContent = newContent.replace(/function\s+(\w+)\s*\(/g, 'function $1(scene: Phaser.Scene | any, ');
                                 newContent = newContent.replace(/this\./g, 'scene.');
                                 newContent = newContent.replace(/new\s+(\w+)\(this,/g, 'new $1(scene,');
 
