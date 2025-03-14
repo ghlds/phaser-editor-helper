@@ -1,6 +1,6 @@
 {
     "name": "phaser-editor-helper",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "description": "Phaser Editor Integration Helper",
     "main": "index.js",
     "scripts": {},
@@ -10,6 +10,11 @@
         "webpack",
         "webpack-plugin"
     ],
+    "devDependencies":{
+        "chokidar": "^3.6.0",
+        "@babel/core": "^7.26.0",
+        "@babel/types": "^7.26.0"
+    },
     "repository": {
         "type": "git",
         "url": "git+https://github.com/ghlds/phaser-editor-helper.git"

@@ -1,7 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const chokidar = require('chokidar');
-const { copyFileSync, mkdirSync, existsSync } = fs;
+const { copyFileSync, existsSync } = fs;
+
+const babel = require('@babel/core');
+const t = require('@babel/types');
 
 class PhaserEditorHelper {
     constructor(options) {
@@ -9,6 +12,9 @@ class PhaserEditorHelper {
         this.outputDir = options.outputDir;
         this.excludePatterns = options.excludePatterns || [];
         this.conversionDir = options.conversionDir;
+
+        // 是否已经开始监听
+        this.isWatching = false;
     }
 
     apply(compiler) {
@@ -29,166 +35,249 @@ class PhaserEditorHelper {
     }
 
     startWatching() {
+        if (this.isWatching) {
+            return;
+        }
+        this.isWatching = true;
+
         const watcher = chokidar.watch(this.watchDir, {
-            ignored: this.excludePatterns,
+            ignored: (path) => {
+                return this.excludePatterns.some(pattern => path.includes(pattern));
+            },
             persistent: true,
         });
 
-        let timeout;
         watcher.on('all', (event, filePath) => {
-            if (event === 'add' || event === 'change') {
-                clearTimeout(timeout);
-                timeout = setTimeout(() => {
-                    this.copyDirectory(this.watchDir, this.outputDir);
-                }, 1000);
+            if (event === 'add' || event === 'addDir' || event === 'change') {
+                // console.log(`文件监听: ${event}, 文件: ${filePath}`);
+                this.addFiles(filePath, filePath.replace(this.watchDir, this.outputDir));
+            }
+            if (event === 'unlink' || event === 'unlinkDir') {
+                const targetPath = filePath.replace(this.watchDir, this.outputDir);
+                // console.log(`删除事件: ${event}, 文件: ${filePath}`);
+                this.deleteFiles(targetPath);
             }
         });
+
     }
 
-    copyDirectory(source, destination) {
-        if (!existsSync(destination)) {
-            mkdirSync(destination, { recursive: true });
-        }
-
-        fs.readdirSync(source).forEach((item) => {
-            const sourcePath = path.join(source, item);
-            const destPath = path.join(destination, item);
-
-            if (this.excludePatterns.some((pattern) => sourcePath.includes(pattern))) {
-                return;
-            }
-
-            const stat = fs.statSync(sourcePath);
-            if (stat.isDirectory()) {
-                this.copyDirectory(sourcePath, destPath);
+    // 添加文件
+    addFiles(sourcePath, targetPath) {
+        if (fs.existsSync(sourcePath)) {
+            // 如果是目录，创建目录
+            if (fs.lstatSync(sourcePath).isDirectory()) {
+                fs.mkdirSync(targetPath, { recursive: true });
             } else {
-                const sourceContent = fs.readFileSync(sourcePath, 'utf-8');
-                let destContent = existsSync(destPath) ? fs.readFileSync(destPath, 'utf-8') : '';
-
+                // 如果是文件，看看是否是需要转换的文件
                 const ext = path.extname(sourcePath);
                 if ((ext === '.js' || ext === '.ts') && this.conversionDir && path.normalize(sourcePath).includes(path.normalize(this.conversionDir))) {
-                    const hasClassExport = /export\s+class\s+/g.test(sourceContent);
-                    if (!hasClassExport) {
-                        const functionMatches = sourceContent.match(/function\s+\w+\s*\(/g);
-                        if (functionMatches) {
-                            let newContent = sourceContent;
-                            functionMatches.forEach(fn => {
-                                const fnName = fn.split(' ')[1].split('(')[0];
-                                const exportStatement = `export { ${fnName} };`;
-                                newContent += `\n${exportStatement}`;
-                            });
-                            if (ext === '.ts') {
-                                newContent = newContent.replace(/function\s+(\w+)\s*\(/g, 'function $1(scene: Phaser.Scene | any, ');
-                                newContent = newContent.replace(/this\./g, 'scene.');
-                                newContent = newContent.replace(/new\s+(\w+)\(this,/g, 'new $1(scene,');
+                    // 读取源文件内容
+                    const sourceContent = fs.readFileSync(sourcePath, 'utf-8');
+                    const hasClassExport = /export\s+class\s+/g.test(sourceContent); // 是否有类导出
+                    const functionMatches = sourceContent.match(/function\s+\w+\s*\(/g); // 是否有函数
+                    // 如果有类导出，并且有函数，则进行转换
+                    if (!hasClassExport && functionMatches) {
+                        this.perfectFunction(sourcePath, sourceContent, targetPath);
+                        return
+                    }
+                }
+                // 如果不是需要转换的文件，直接复制
+                copyFileSync(sourcePath, targetPath);
+            }
+            // console.log('已添加目标路径:', targetPath);
+        }
+    }
 
-                                const sceneProperties = newContent.match(/scene\.\w+/g);
-                                const propertiesFromNew = this.extractPropertiesFromNew(newContent);
-                                const typeDefinition = this.generateTypeDefinition(sourcePath, propertiesFromNew, newContent);
-                                newContent += `\n${typeDefinition}`;
-                            } else {
-                                newContent = newContent.replace(/function\s+(\w+)\s*\(/g, 'function $1(scene, ');
-                                newContent = newContent.replace(/this\./g, 'scene.');
-                                newContent = newContent.replace(/new\s+(\w+)\(this,/g, 'new $1(scene,');
-                            }
-                            if (newContent !== destContent) {
-                                fs.writeFileSync(destPath, newContent, 'utf-8');
-                            }
-                        } else {
-                            if (sourceContent !== destContent) {
-                                copyFileSync(sourcePath, destPath);
-                            }
-                        }
+    deleteFiles(targetPath) {
+        // console.log('已删除目标路径:', targetPath);
+        if (fs.existsSync(targetPath)) {
+            if (fs.lstatSync(targetPath).isDirectory()) {
+                fs.rmdirSync(targetPath, { recursive: true });
+            } else {
+                fs.unlinkSync(targetPath);
+            }
+            console.log('已删除目标路径:', targetPath);
+        }
+    }
+
+    perfectFunction(sourcePath, sourceContent, destPath) {
+        // console.log('进行了强化---', sourcePath);
+        const scenePublicTargets = this.readSceneFile(sourcePath);
+        // console.log('scenePublicTargets', scenePublicTargets);
+
+        const newInstanceNames = new Map();
+        const validInstanceNames = new Set();
+
+        let _this = this;
+        const ext = path.extname(sourcePath);
+
+        const plugin = {
+            visitor: {
+                FunctionDeclaration(path) {
+                    if (!t.isExportNamedDeclaration(path.parent)) {
+                        const exportDeclaration = t.exportNamedDeclaration(path.node, []);
+                        path.replaceWith(exportDeclaration);
+                    }
+                    if (ext === '.ts') {
+                        _this.addParameter(path.node, 'scene', 'Phaser.Scene');
                     } else {
-                        if (sourceContent !== destContent) {
-                            copyFileSync(sourcePath, destPath);
+                        _this.addParameter(path.node, 'scene');
+                    }
+                },
+                MemberExpression(path) {
+                    if (t.isThisExpression(path.node.object)) {
+                        path.node.object = t.identifier('scene');
+                    }
+                },
+                NewExpression(path) {
+                    const args = path.node.arguments;
+                    if (args.length > 0 && t.isThisExpression(args[0])) {
+                        args[0] = t.identifier('scene');
+                    }
+                },
+                VariableDeclarator(path) {
+                    if (ext === '.js') {
+                        return;
+                    }
+                    const { id, init } = path.node;
+                    if (init && t.isNewExpression(init)) {
+                        const instanceName = id.name;
+                        const typeName = init.callee.name;
+                        newInstanceNames.set(instanceName, typeName);
+                    }
+                },
+                AssignmentExpression(path) {
+                    if (ext === '.js') {
+                        return;
+                    }
+                    const left = path.node.left;
+                    const right = path.node.right;
+                    // console.log('Checking AssignmentExpression:', path.toString());
+
+                    if (t.isMemberExpression(left) && t.isIdentifier(right)) {
+                        const leftPropertyName = left.property.name;
+                        const rightName = right.name;
+
+                        // 检查 this.xxx = xxx 或 scene.xxx = xxx
+                        if (
+                            (t.isThisExpression(left.object) ||
+                                (t.isIdentifier(left.object) && left.object.name === 'scene')) &&
+                            leftPropertyName === rightName &&
+                            newInstanceNames.has(rightName)
+                        ) {
+                            // console.log(`Found potential match: ${path.toString()}`);
+                            // console.log(`Adding valid instance: ${rightName}`);
+                            validInstanceNames.add(rightName);
                         }
                     }
-                } else {
-                    if (sourceContent !== destContent) {
-                        copyFileSync(sourcePath, destPath);
+                },
+                Program: {
+                    exit(path) {
+                        if (ext === '.js') {
+                            return;
+                        }
+                        const typeProperties = [];
+                        // console.log('newInstanceNames', newInstanceNames);
+                        // console.log('validInstanceNames', validInstanceNames);
+                        validInstanceNames.forEach((instanceName) => {
+                            const typeName = newInstanceNames.get(instanceName);
+                            if (typeName) {
+                                typeProperties.push(
+                                    t.tsPropertySignature(
+                                        t.identifier(instanceName),
+                                        t.tsTypeAnnotation(t.tsTypeReference(t.identifier(typeName)))
+                                    )
+                                );
+                            }
+                        });
+
+                        scenePublicTargets.forEach((target) => {
+                            typeProperties.push(
+                                t.tsPropertySignature(
+                                    t.identifier(target.label),
+                                    t.tsTypeAnnotation(t.tsTypeReference(t.identifier(target.type)))
+                                )
+                            );
+                        });
+
+                        if (typeProperties.length > 0) {
+                            const typeAlias = t.exportNamedDeclaration(
+                                t.tsTypeAliasDeclaration(
+                                    t.identifier('SceneExtensions'),
+                                    null,
+                                    t.tsTypeLiteral(typeProperties)
+                                )
+                            );
+
+                            path.pushContainer('body', typeAlias);
+                        }
                     }
                 }
             }
-        });
-    }
+        };
 
-    extractPropertiesFromNew(content) {
-        const properties = [];
-        const newMatches = content.match(/const\s+(\w+)\s*=\s*new\s+(\w+)\s*\(/g);
-        if (newMatches) {
-            newMatches.forEach(match => {
-                const [_, instanceName, className] = match.match(/const\s+(\w+)\s*=\s*new\s+(\w+)\s*\(/);
-                const sceneAssignment = new RegExp(`scene\\.${instanceName}\\s*=\\s*${instanceName}`);
-                if (sceneAssignment.test(content)) {
-                    properties.push({ instanceName, className });
-                }
-            });
-        }
-        return properties;
-    }
-
-    typeSupplement(phaserObjectTypeDefinition, content) {
-        const regex = /(\w+)\s*:\s*([^;]+);/g;
-        const propertyMap = {};
-        let match;
-        // biome-ignore lint/suspicious/noAssignInExpressions: <explanation>
-        while ((match = regex.exec(phaserObjectTypeDefinition)) !== null) {
-            const [, name, typeDef] = match;
-            propertyMap[name] = typeDef.trim();
-        }
-
-        const commentRegex = /\/\/\s*(\w+)\s*\(components\)/g;
-        const commentMatches = [...content.matchAll(commentRegex)];
-
-        commentMatches.forEach(cMatch => {
-            const varName = cMatch[1];
-            const lineRegex = new RegExp(`new\\s+(\\w+)\\(${varName}\\)`, 'g');
-            const lineMatches = [...content.matchAll(lineRegex)];
-            lineMatches.forEach(lineMatch => {
-                const className = lineMatch[1];
-                if (propertyMap[varName]) {
-                    propertyMap[varName] = `${propertyMap[varName]} & { __${className}: ${className} }`;
-                }
-            });
+        const output = babel.transformSync(sourceContent, {
+            plugins: [plugin],
+            parserOpts: {
+                sourceType: 'module',
+                plugins: ['typescript']
+            },
+            generatorOpts: {
+                decoratorsBeforeExport: true,
+            }
         });
 
-        let result = '';
-        for (const [name, typeDef] of Object.entries(propertyMap)) {
-            result += `${name}: ${typeDef}; `;
-        }
-        return result.trim();
+        const { code } = output;
+        fs.writeFileSync(destPath, code, 'utf-8');
+
     }
 
-    generateTypeDefinition(sourcePath, propertiesFromNew, content) {
+
+    addParameter(node, paramName, paramType) {
+        // Check if the parameter already exists
+        const paramExists = node.params?.some(param => t.isIdentifier(param, { name: paramName }));
+        if (!paramExists) {
+            // Create a new parameter
+            const param = t.identifier(paramName);
+
+            // If the file is TypeScript, add a type annotation
+            if (paramType) {
+                param.typeAnnotation = t.tsTypeAnnotation(
+                    t.tsUnionType([
+                        t.tsTypeReference(t.identifier(paramType)),
+                        t.tsAnyKeyword()
+                    ])
+                );
+            }
+
+            // Prepend the new parameter to the parameters list
+            node.params = node.params || [];
+            node.params.unshift(param);
+        }
+    }
+
+
+    readSceneFile(sourcePath) {
         const sceneFilePath = sourcePath.replace(/\.(js|ts)$/, '.scene');
         if (!existsSync(sceneFilePath)) {
-            return '';
+            return [];
         }
-
         const sceneContent = JSON.parse(fs.readFileSync(sceneFilePath, 'utf-8'));
         const displayList = sceneContent.displayList || [];
         const publicProperties = this.extractPublicProperties(displayList);
-
-        const phaserObjectTypeDefinition = publicProperties.map(prop => `${prop.label}: ${prop.type};`).join(' ');
-        const newPropertiesDefinition = propertiesFromNew.map(prop => `${prop.instanceName}: ${prop.className};`).join(' ');
-
-        const typeDefinition = this.typeSupplement(phaserObjectTypeDefinition, content);
-        const prefabDefinition = this.typeSupplement(newPropertiesDefinition, content);
-
-        return `type SceneExtensions = { ${typeDefinition} ${prefabDefinition} }; export type { SceneExtensions };`;
+        return publicProperties;
     }
 
     extractPublicProperties(displayList) {
         const publicProperties = [];
 
-        function traverseList(list) {
+        const traverseList = (list) => {
             list.forEach(item => {
                 if (item.scope === 'PUBLIC' && item.type) {
-                    publicProperties.push({
-                        label: item.label,
-                        type: `Phaser.GameObjects.${item.type}`
-                    });
+                    let phaserType = this.phaserTypeFilter(item);
+                    if (phaserType) {
+                        publicProperties.push(phaserType);
+                    }
                 }
                 if (item.list && item.list.length > 0) {
                     traverseList(item.list);
@@ -199,6 +288,85 @@ class PhaserEditorHelper {
         traverseList(displayList);
         return publicProperties;
     }
+
+
+    phaserTypeFilter(item) {
+        let phaserObjectsTypes = ["Image", "Sprite", "TileSprite", "NineSlice", "ThreeSlice", "Video", "Container", "Layer", "Text", "BitmapText", "Rectangle", "Ellipse", "Triangle", "Polygon", "RoundedRectangleGraphics", "RoundedRectangleImage"]
+        if (phaserObjectsTypes.includes(item.type)) {
+            return {
+                label: item.label,
+                type: `Phaser.GameObjects.${item.type}`
+            }
+        }
+        switch (item.type) {
+            case 'ArcadeImage':
+                return {
+                    label: item.label,
+                    type: 'Phaser.Physics.Arcade.Image'
+                };
+            case 'ArcadeSprite':
+                return {
+                    label: item.label,
+                    type: 'Phaser.Physics.Arcade.Sprite'
+                };
+            case 'Collider':
+                return {
+                    label: item.label,
+                    type: 'Phaser.Physics.Arcade.Collider'
+                };
+            case 'b2Body':
+                return {
+                    label: item.label,
+                    type: 'b2Body'
+                }
+            case 'b2OffsetPolygonShape':
+                return {
+                    label: item.label,
+                    type: 'b2OffsetPolygonShape'
+                }
+            case 'b2BoxShape':
+                return {
+                    label: item.label,
+                    type: 'b2BoxShape'
+                }
+            case 'b2PolygonShape':
+                return {
+                    label: item.label,
+                    type: 'b2PolygonShape'
+                }
+            case 'ParticleEmitter':
+                return {
+                    label: item.label,
+                    type: 'Phaser.GameObjects.Particles.ParticleEmitter'
+                }
+            case 'TilemapLayer':
+                return {
+                    label: item.label,
+                    type: 'Phaser.Tilemaps.TilemapLayer'
+                }
+            case 'Tilemap':
+                return {
+                    label: item.label,
+                    type: 'Phaser.Tilemaps.Tilemap'
+                }
+            case 'EditableTilemap':
+                return {
+                    label: item.label,
+                    type: 'Phaser.Tilemaps.Tilemap'
+                }
+            case 'SpineGameObject':
+                return {
+                    label: item.label,
+                    type: 'SpineGameObject'
+                }
+            default:
+                return {
+                    label: item.label,
+                    type: 'any'
+                };
+        }
+    }
+
 
     cleanNonJsonFiles(directory) {
         const items = fs.readdirSync(directory, { withFileTypes: true });
