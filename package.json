@@ -1,6 +1,6 @@
 {
     "name": "phaser-editor-helper",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "description": "Phaser Editor Integration Helper",
     "main": "index.js",
     "scripts": {},
