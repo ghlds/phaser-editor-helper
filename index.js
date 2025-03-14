@@ -8,8 +8,8 @@ const t = require('@babel/types');
 
 class PhaserEditorHelper {
     constructor(options) {
-        this.watchDir = options.watchDir;
-        this.outputDir = options.outputDir;
+        this.watchDir = path.isAbsolute(options.watchDir) ? options.watchDir : path.resolve(options.watchDir);
+        this.outputDir = path.isAbsolute(options.outputDir) ? options.outputDir : path.resolve(options.outputDir);
         this.excludePatterns = options.excludePatterns || [];
         this.conversionDir = options.conversionDir;
 
