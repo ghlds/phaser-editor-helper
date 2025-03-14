@@ -13,7 +13,6 @@ class PhaserEditorHelper {
         this.excludePatterns = options.excludePatterns || [];
         this.conversionDir = options.conversionDir;
 
-        // 是否已经开始监听
         this.isWatching = false;
     }
 
@@ -25,7 +24,7 @@ class PhaserEditorHelper {
         }
         if (compiler.options.mode === 'production') {
             compiler.hooks.afterDone.tap('PhaserEditorHelper', () => {
-                const outputPath = compiler.options.output.path; // 获取 webpack 输出路径
+                const outputPath = compiler.options.output.path; //  webpack out path
                 const watchDirName = path.basename(this.watchDir);
                 const distDir = path.join(outputPath, watchDirName);
                 this.cleanNonJsonFiles(distDir);
@@ -49,61 +48,48 @@ class PhaserEditorHelper {
 
         watcher.on('all', (event, filePath) => {
             if (event === 'add' || event === 'addDir' || event === 'change') {
-                // console.log(`文件监听: ${event}, 文件: ${filePath}`);
                 this.addFiles(filePath, filePath.replace(this.watchDir, this.outputDir));
             }
             if (event === 'unlink' || event === 'unlinkDir') {
                 const targetPath = filePath.replace(this.watchDir, this.outputDir);
-                // console.log(`删除事件: ${event}, 文件: ${filePath}`);
                 this.deleteFiles(targetPath);
             }
         });
 
     }
 
-    // 添加文件
     addFiles(sourcePath, targetPath) {
         if (fs.existsSync(sourcePath)) {
-            // 如果是目录，创建目录
             if (fs.lstatSync(sourcePath).isDirectory()) {
                 fs.mkdirSync(targetPath, { recursive: true });
             } else {
-                // 如果是文件，看看是否是需要转换的文件
                 const ext = path.extname(sourcePath);
                 if ((ext === '.js' || ext === '.ts') && this.conversionDir && path.normalize(sourcePath).includes(path.normalize(this.conversionDir))) {
-                    // 读取源文件内容
                     const sourceContent = fs.readFileSync(sourcePath, 'utf-8');
-                    const hasClassExport = /export\s+class\s+/g.test(sourceContent); // 是否有类导出
-                    const functionMatches = sourceContent.match(/function\s+\w+\s*\(/g); // 是否有函数
-                    // 如果有类导出，并且有函数，则进行转换
+                    const hasClassExport = /export\s+class\s+/g.test(sourceContent);
+                    const functionMatches = sourceContent.match(/function\s+\w+\s*\(/g);
                     if (!hasClassExport && functionMatches) {
                         this.perfectFunction(sourcePath, sourceContent, targetPath);
                         return
                     }
                 }
-                // 如果不是需要转换的文件，直接复制
                 copyFileSync(sourcePath, targetPath);
             }
-            // console.log('已添加目标路径:', targetPath);
         }
     }
 
     deleteFiles(targetPath) {
-        // console.log('已删除目标路径:', targetPath);
         if (fs.existsSync(targetPath)) {
             if (fs.lstatSync(targetPath).isDirectory()) {
                 fs.rmdirSync(targetPath, { recursive: true });
             } else {
                 fs.unlinkSync(targetPath);
             }
-            console.log('已删除目标路径:', targetPath);
         }
     }
 
     perfectFunction(sourcePath, sourceContent, destPath) {
-        // console.log('进行了强化---', sourcePath);
         const scenePublicTargets = this.readSceneFile(sourcePath);
-        // console.log('scenePublicTargets', scenePublicTargets);
 
         const newInstanceNames = new Map();
         const validInstanceNames = new Set();
@@ -152,21 +138,17 @@ class PhaserEditorHelper {
                     }
                     const left = path.node.left;
                     const right = path.node.right;
-                    // console.log('Checking AssignmentExpression:', path.toString());
 
                     if (t.isMemberExpression(left) && t.isIdentifier(right)) {
                         const leftPropertyName = left.property.name;
                         const rightName = right.name;
 
-                        // 检查 this.xxx = xxx 或 scene.xxx = xxx
                         if (
                             (t.isThisExpression(left.object) ||
                                 (t.isIdentifier(left.object) && left.object.name === 'scene')) &&
                             leftPropertyName === rightName &&
                             newInstanceNames.has(rightName)
                         ) {
-                            // console.log(`Found potential match: ${path.toString()}`);
-                            // console.log(`Adding valid instance: ${rightName}`);
                             validInstanceNames.add(rightName);
                         }
                     }
@@ -177,8 +159,6 @@ class PhaserEditorHelper {
                             return;
                         }
                         const typeProperties = [];
-                        // console.log('newInstanceNames', newInstanceNames);
-                        // console.log('validInstanceNames', validInstanceNames);
                         validInstanceNames.forEach((instanceName) => {
                             const typeName = newInstanceNames.get(instanceName);
                             if (typeName) {
